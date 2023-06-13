@@ -110,12 +110,17 @@ impl Parser {
         match self.cur_token {
             Token::Ident(_) => self.parse_identifier(),
             Token::Int(_) => self.parse_integer_literal(),
+            Token::True | Token::False => self.parse_boolean(),
             Token::Bang | Token::Minus => self.parse_prefix_expression(),
             _ => Err(format!(
                 "no prefix parse function for {:?} found",
                 self.cur_token
             )),
         }
+    }
+
+    fn parse_boolean(&mut self) -> Result<Expression, ParserError> {
+        Ok(Expression::Boolean(self.cur_token_is(Token::True)))
     }
 
     fn parse_identifier(&mut self) -> Result<Expression, ParserError> {
@@ -491,6 +496,10 @@ return 993322;
                 "3 + 4 * 5 == 3 * 1 + 4 * 5",
                 "((3 + (4 * 5)) == ((3 * 1) + (4 * 5)))",
             ),
+            ("true", "true"),
+            ("false", "false"),
+            ("3 > 5 == false", "((3 > 5) == false)"),
+            ("3 < 5 == true", "((3 < 5) == true)"),
         ];
 
         for tt in tests {

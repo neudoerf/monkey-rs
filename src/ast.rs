@@ -38,6 +38,7 @@ pub(crate) enum Expression {
     Empty,
     Identifier(Identifier),
     IntegerLiteral(i64),
+    Boolean(bool),
     PrefixExpression(PrefixExpression),
     InfixExpression(InfixExpression),
 }
@@ -61,6 +62,7 @@ impl fmt::Display for Expression {
             Expression::Empty => write!(f, "EmptyExpression"),
             Expression::Identifier(i) => write!(f, "{}", i),
             Expression::IntegerLiteral(i) => write!(f, "{}", i),
+            Expression::Boolean(b) => write!(f, "{}", b),
             Expression::PrefixExpression(pe) => write!(f, "({}{})", pe.op, pe.right),
             Expression::InfixExpression(ie) => write!(f, "({} {} {})", ie.left, ie.op, ie.right),
         }
