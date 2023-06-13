@@ -82,15 +82,7 @@ impl Parser {
     }
 
     fn parse_expression(&mut self, precedence: Precedence) -> Result<Expression, ParserError> {
-        let mut left_expr = match self.cur_token {
-            Token::Ident(_) => self.parse_identifier(),
-            Token::Int(_) => self.parse_integer_literal(),
-            Token::Bang | Token::Minus => self.parse_prefix_expression(),
-            _ => Err(format!(
-                "no prefix parse function for {:?} found",
-                self.cur_token
-            )),
-        }?;
+        let mut left_expr = self.prefix_dispatch()?;
 
         while !self.peek_token_is(Token::Semicolon)
             && prec(&precedence) < prec(&self.peek_precedence())
@@ -109,11 +101,21 @@ impl Parser {
                 }
                 _ => return Ok(left_expr),
             }
-
-            self.next_token();
         }
 
         Ok(left_expr)
+    }
+
+    fn prefix_dispatch(&mut self) -> Result<Expression, ParserError> {
+        match self.cur_token {
+            Token::Ident(_) => self.parse_identifier(),
+            Token::Int(_) => self.parse_integer_literal(),
+            Token::Bang | Token::Minus => self.parse_prefix_expression(),
+            _ => Err(format!(
+                "no prefix parse function for {:?} found",
+                self.cur_token
+            )),
+        }
     }
 
     fn parse_identifier(&mut self) -> Result<Expression, ParserError> {
@@ -473,7 +475,23 @@ return 993322;
 
     #[test]
     fn test_operator_precedence_parsing() {
-        let tests = vec![("-a + b", "((-a) + b)")];
+        let tests = vec![
+            ("-a * b", "((-a) * b)"),
+            ("!-a", "(!(-a))"),
+            ("a + b + c", "((a + b) + c)"),
+            ("a + b - c", "((a + b) - c)"),
+            ("a * b * c", "((a * b) * c)"),
+            ("a * b / c", "((a * b) / c)"),
+            ("a + b / c", "(a + (b / c))"),
+            ("a + b * c + d / e - f", "(((a + (b * c)) + (d / e)) - f)"),
+            ("3 + 4; -5 * 5", "(3 + 4)((-5) * 5)"),
+            ("5 > 4 == 3 < 4", "((5 > 4) == (3 < 4))"),
+            ("5 < 4 != 3 > 4", "((5 < 4) != (3 > 4))"),
+            (
+                "3 + 4 * 5 == 3 * 1 + 4 * 5",
+                "((3 + (4 * 5)) == ((3 * 1) + (4 * 5)))",
+            ),
+        ];
 
         for tt in tests {
             let l = Lexer::new(tt.0);
@@ -482,8 +500,9 @@ return 993322;
             let program = p.parse_program();
 
             check_errors(p);
-            assert_eq!(program.len(), 1);
-            assert_eq!(format!("{}", program[0]), tt.1);
+            // assert_eq!(program.len(), 1);
+            let p: String = program.iter().map(|i| format!("{}", i)).collect();
+            assert_eq!(p, tt.1);
         }
     }
 }
