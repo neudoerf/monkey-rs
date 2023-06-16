@@ -11,7 +11,7 @@ pub(crate) struct Parser {
     cur_token: Token,
     peek_token: Token,
 
-    errors: Vec<String>,
+    pub(crate) errors: Vec<String>,
 }
 
 type ParserError = String;
@@ -27,7 +27,7 @@ enum Precedence {
 }
 
 impl Parser {
-    fn new(lexer: Lexer) -> Parser {
+    pub(crate) fn new(lexer: Lexer) -> Parser {
         let mut p = Parser {
             lexer,
             cur_token: Token::EOF,
@@ -46,7 +46,7 @@ impl Parser {
         self.peek_token = self.lexer.next_token();
     }
 
-    fn parse_program(&mut self) -> Program {
+    pub(crate) fn parse_program(&mut self) -> Program {
         let mut program: Program = Program(Vec::new());
 
         while self.cur_token != Token::EOF {

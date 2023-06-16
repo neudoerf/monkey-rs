@@ -1,4 +1,4 @@
-use crate::{lexer::Lexer, token::Token};
+use crate::{lexer::Lexer, parser::Parser};
 use std::io::{self, Write};
 
 const PROMPT: &str = ">> ";
@@ -6,20 +6,20 @@ const PROMPT: &str = ">> ";
 pub(crate) fn start() {
     let stdin = io::stdin();
     let mut stdout = io::stdout();
-    let mut buffer = String::new();
 
     loop {
+        let mut buffer = String::new();
         print!("{}", PROMPT);
         stdout.flush().unwrap();
         stdin.read_line(&mut buffer).unwrap();
-        let mut lexer = Lexer::new(&buffer);
-        loop {
-            let token = lexer.next_token();
-            println!("{:?}", token);
-            if token == Token::EOF {
-                break;
-            }
+        let l = Lexer::new(&buffer);
+        let mut p = Parser::new(l);
+        let program = p.parse_program();
+
+        if p.errors.len() != 0 {
+            p.errors.iter().for_each(|e| println!("{}", e));
+        } else {
+            println!("{}", program);
         }
-        buffer.clear();
     }
 }
