@@ -1,6 +1,7 @@
 use crate::{
     ast::{Expression, Program, Statement},
     object::Object,
+    token::Token,
 };
 
 pub(crate) fn eval_program(mut prog: Program) -> Object {
@@ -26,7 +27,56 @@ fn eval_expression(expr: Expression) -> Object {
     match expr {
         Expression::Integer(i) => Object::Integer(i),
         Expression::Boolean(b) => Object::Boolean(b),
+        Expression::PrefixExpression(pe) => {
+            eval_prefix_expression(pe.op, eval_expression(*pe.right))
+        }
+        Expression::InfixExpression(ie) => {
+            eval_infix_expression(ie.op, eval_expression(*ie.left), eval_expression(*ie.right))
+        }
         _ => todo!(),
+    }
+}
+
+fn eval_prefix_expression(operator: Token, right: Object) -> Object {
+    match operator {
+        Token::Bang => eval_bang_operator_expression(right),
+        Token::Minus => eval_minus_operator_expression(right),
+        _ => todo!(),
+    }
+}
+
+fn eval_bang_operator_expression(right: Object) -> Object {
+    match right {
+        Object::Boolean(b) => Object::Boolean(!b),
+        Object::Null => Object::Boolean(false),
+        _ => Object::Boolean(false),
+    }
+}
+
+fn eval_minus_operator_expression(right: Object) -> Object {
+    match right {
+        Object::Integer(i) => Object::Integer(-i),
+        _ => Object::Null,
+    }
+}
+
+fn eval_infix_expression(operator: Token, left: Object, right: Object) -> Object {
+    match left {
+        Object::Integer(left) => match right {
+            Object::Integer(right) => eval_integer_infix_expression(operator, left, right),
+            _ => Object::Null,
+        },
+        _ => Object::Null,
+    }
+}
+
+fn eval_integer_infix_expression(operator: Token, left: i64, right: i64) -> Object {
+    match operator {
+        Token::Plus => Object::Integer(left + right),
+        Token::Minus => Object::Integer(left - right),
+        Token::Asterisk => Object::Integer(left * right),
+        Token::Slash => Object::Integer(left / right),
+        _ => Object::Null,
     }
 }
 
@@ -38,7 +88,23 @@ mod tests {
 
     #[test]
     fn eval_integer_expression() {
-        let tests = vec![("5", 5), ("10", 10)];
+        let tests = vec![
+            ("5", 5),
+            ("10", 10),
+            ("-5", -5),
+            ("-10", -10),
+            ("5 + 5 + 5 + 5 - 10", 10),
+            ("2 * 2 * 2 * 2 * 2", 32),
+            ("-50 + 100 + -50", 0),
+            ("5 * 2 + 10", 20),
+            ("5 + 2 * 10", 25),
+            ("20 + 2 * -10", 0),
+            ("50 / 2 * 2 + 10", 60),
+            ("2 * (5 + 10)", 30),
+            ("3 * 3 * 3 + 10", 37),
+            ("3 * (3 * 3) + 10", 37),
+            ("(5 + 10 * 2 + 15 / 3) * 2 + -10", 50),
+        ];
 
         for (t, exp) in tests {
             let evaluated = test_eval(t);
@@ -53,6 +119,22 @@ mod tests {
         for (t, exp) in tests {
             let evaluated = test_eval(t);
             assert!(test_boolean_object(evaluated, exp));
+        }
+    }
+
+    #[test]
+    fn test_bang_operator() {
+        let tests = vec![
+            ("!true", false),
+            ("!false", true),
+            ("!5", false),
+            ("!!true", true),
+            ("!!false", false),
+            ("!!5", true),
+        ];
+        for (t, exp) in tests {
+            let evaluated = test_eval(t);
+            test_boolean_object(evaluated, exp);
         }
     }
 
