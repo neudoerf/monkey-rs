@@ -3,7 +3,7 @@ use crate::{
     object::Object,
 };
 
-fn eval_program(mut prog: Program) -> Object {
+pub(crate) fn eval_program(mut prog: Program) -> Object {
     match prog.len() {
         0 => Object::Null,
         1 => eval_statement(prog.remove(0)),
@@ -25,6 +25,7 @@ fn eval_statement(stmt: Statement) -> Object {
 fn eval_expression(expr: Expression) -> Object {
     match expr {
         Expression::Integer(i) => Object::Integer(i),
+        Expression::Boolean(b) => Object::Boolean(b),
         _ => todo!(),
     }
 }
@@ -41,7 +42,17 @@ mod tests {
 
         for (t, exp) in tests {
             let evaluated = test_eval(t);
-            test_integer_object(evaluated, exp);
+            assert!(test_integer_object(evaluated, exp));
+        }
+    }
+
+    #[test]
+    fn eval_bool_expression() {
+        let tests = vec![("true", true), ("false", false)];
+
+        for (t, exp) in tests {
+            let evaluated = test_eval(t);
+            assert!(test_boolean_object(evaluated, exp));
         }
     }
 
@@ -57,6 +68,13 @@ mod tests {
         match obj {
             Object::Integer(i) => i == expected,
             _ => panic!("{} is not integer", obj),
+        }
+    }
+
+    fn test_boolean_object(obj: Object, expected: bool) -> bool {
+        match obj {
+            Object::Boolean(b) => b == expected,
+            _ => panic!("{} is not boolean", obj),
         }
     }
 }
