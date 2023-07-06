@@ -29,6 +29,7 @@ fn eval_expression(expr: Expression) -> Object {
     }
 }
 
+#[cfg(test)]
 mod tests {
     use crate::{lexer::Lexer, parser::Parser};
 

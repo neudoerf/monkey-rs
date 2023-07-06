@@ -108,10 +108,9 @@ impl Lexer {
     }
 }
 
+#[cfg(test)]
 mod tests {
-    use crate::token::Token;
-
-    use super::Lexer;
+    use super::*;
 
     #[test]
     fn test_next_token() {
