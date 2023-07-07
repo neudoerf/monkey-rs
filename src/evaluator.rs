@@ -1,5 +1,5 @@
 use crate::{
-    ast::{Expression, Program, Statement},
+    ast::{Expression, IfExpression, Program, Statement},
     object::Object,
     token::Token,
 };
@@ -33,6 +33,7 @@ fn eval_expression(expr: Expression) -> Object {
         Expression::InfixExpression(ie) => {
             eval_infix_expression(ie.op, eval_expression(*ie.left), eval_expression(*ie.right))
         }
+        Expression::IfExpression(ie) => eval_if_expression(ie),
         _ => todo!(),
     }
 }
@@ -94,6 +95,25 @@ fn eval_boolean_infix_expression(operator: Token, left: bool, right: bool) -> Ob
     }
 }
 
+fn eval_if_expression(ie: IfExpression) -> Object {
+    if is_truthy(eval_expression(*ie.condition)) {
+        eval_program(ie.consequence)
+    } else {
+        if let Some(alt) = ie.alternative {
+            eval_program(alt)
+        } else {
+            Object::Null
+        }
+    }
+}
+
+fn is_truthy(obj: Object) -> bool {
+    match obj {
+        Object::Null => false,
+        Object::Boolean(b) => b,
+        _ => true,
+    }
+}
 #[cfg(test)]
 mod tests {
     use crate::{lexer::Lexer, parser::Parser};
@@ -183,6 +203,11 @@ mod tests {
             ("if (1 > 2) {10} else { 20 }", Object::Integer(20)),
             ("if (1 < 2) {10} else { 20 }", Object::Integer(10)),
         ];
+
+        for (test, exp) in tests {
+            let evaluated = test_eval(test);
+            assert_eq!(evaluated, exp);
+        }
     }
 
     fn test_eval(prog: &str) -> Object {
