@@ -1,5 +1,6 @@
 use std::fmt;
 
+#[derive(Copy, Clone)]
 pub(crate) enum Object {
     Integer(i64),
     Boolean(bool),

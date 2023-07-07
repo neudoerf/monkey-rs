@@ -62,10 +62,12 @@ fn eval_minus_operator_expression(right: Object) -> Object {
 
 fn eval_infix_expression(operator: Token, left: Object, right: Object) -> Object {
     if let (Object::Integer(left), Object::Integer(right)) = (left, right) {
-        eval_integer_infix_expression(operator, left, right)
-    } else {
-        Object::Null
+        return eval_integer_infix_expression(operator, left, right);
     }
+    if let (Object::Boolean(left), Object::Boolean(right)) = (left, right) {
+        return eval_boolean_infix_expression(operator, left, right);
+    }
+    Object::Null
 }
 
 fn eval_integer_infix_expression(operator: Token, left: i64, right: i64) -> Object {
@@ -74,6 +76,16 @@ fn eval_integer_infix_expression(operator: Token, left: i64, right: i64) -> Obje
         Token::Minus => Object::Integer(left - right),
         Token::Asterisk => Object::Integer(left * right),
         Token::Slash => Object::Integer(left / right),
+        Token::Lt => Object::Boolean(left < right),
+        Token::Gt => Object::Boolean(left > right),
+        Token::Eq => Object::Boolean(left == right),
+        Token::NotEq => Object::Boolean(left != right),
+        _ => Object::Null,
+    }
+}
+
+fn eval_boolean_infix_expression(operator: Token, left: bool, right: bool) -> Object {
+    match operator {
         Token::Lt => Object::Boolean(left < right),
         Token::Gt => Object::Boolean(left > right),
         Token::Eq => Object::Boolean(left == right),
@@ -127,6 +139,15 @@ mod tests {
             ("1 != 1", false),
             ("1 == 2", false),
             ("1 != 2", true),
+            ("true == true", true),
+            ("false == false", true),
+            ("true == false", false),
+            ("true != false", true),
+            ("false != true", true),
+            ("(1 < 2) == true", true),
+            ("(1 < 2) == false", false),
+            ("(1 > 2) == true", false),
+            ("(1 > 2) == false", true),
         ];
 
         for (t, exp) in tests {
@@ -149,6 +170,19 @@ mod tests {
             let evaluated = test_eval(t);
             test_boolean_object(evaluated, exp);
         }
+    }
+
+    #[test]
+    fn test_if_else_expression() {
+        let tests = vec![
+            ("if (true) {10}", Object::Integer(10)),
+            ("if (false) {10}", Object::Null),
+            ("if (1) {10}", Object::Integer(10)),
+            ("if (1 < 2) {10}", Object::Integer(10)),
+            ("if (1 > 2) {10}", Object::Null),
+            ("if (1 > 2) {10} else { 20 }", Object::Integer(20)),
+            ("if (1 < 2) {10} else { 20 }", Object::Integer(10)),
+        ];
     }
 
     fn test_eval(prog: &str) -> Object {
