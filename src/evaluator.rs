@@ -61,12 +61,10 @@ fn eval_minus_operator_expression(right: Object) -> Object {
 }
 
 fn eval_infix_expression(operator: Token, left: Object, right: Object) -> Object {
-    match left {
-        Object::Integer(left) => match right {
-            Object::Integer(right) => eval_integer_infix_expression(operator, left, right),
-            _ => Object::Null,
-        },
-        _ => Object::Null,
+    if let (Object::Integer(left), Object::Integer(right)) = (left, right) {
+        eval_integer_infix_expression(operator, left, right)
+    } else {
+        Object::Null
     }
 }
 
@@ -76,6 +74,10 @@ fn eval_integer_infix_expression(operator: Token, left: i64, right: i64) -> Obje
         Token::Minus => Object::Integer(left - right),
         Token::Asterisk => Object::Integer(left * right),
         Token::Slash => Object::Integer(left / right),
+        Token::Lt => Object::Boolean(left < right),
+        Token::Gt => Object::Boolean(left > right),
+        Token::Eq => Object::Boolean(left == right),
+        Token::NotEq => Object::Boolean(left != right),
         _ => Object::Null,
     }
 }
@@ -114,7 +116,18 @@ mod tests {
 
     #[test]
     fn eval_bool_expression() {
-        let tests = vec![("true", true), ("false", false)];
+        let tests = vec![
+            ("true", true),
+            ("false", false),
+            ("1 < 2", true),
+            ("1 > 2", false),
+            ("1 < 1", false),
+            ("1 > 1", false),
+            ("1 == 1", true),
+            ("1 != 1", false),
+            ("1 == 2", false),
+            ("1 != 2", true),
+        ];
 
         for (t, exp) in tests {
             let evaluated = test_eval(t);
