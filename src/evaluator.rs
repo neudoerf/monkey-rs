@@ -4,21 +4,23 @@ use crate::{
     token::Token,
 };
 
-pub(crate) fn eval_program(mut prog: Program) -> Object {
-    match prog.len() {
-        0 => Object::Null,
-        1 => eval_statement(prog.remove(0)),
-        _ => {
-            let s = prog.remove(0);
-            let _ = eval_statement(s);
-            eval_program(prog)
+pub(crate) fn eval_program(prog: Program) -> Object {
+    let mut evaluated = Object::Null;
+    for stmt in prog {
+        evaluated = eval_statement(stmt);
+        if let Object::ReturnValue(ret) = evaluated {
+            return *ret.clone();
         }
     }
+    evaluated
 }
 
 fn eval_statement(stmt: Statement) -> Object {
     match stmt {
         Statement::ExpressionStatement(es) => eval_expression(es.expression),
+        Statement::ReturnStatement(rs) => {
+            Object::ReturnValue(Box::new(eval_expression(rs.return_value)))
+        }
         _ => todo!(),
     }
 }
@@ -62,7 +64,7 @@ fn eval_minus_operator_expression(right: Object) -> Object {
 }
 
 fn eval_infix_expression(operator: Token, left: Object, right: Object) -> Object {
-    if let (Object::Integer(left), Object::Integer(right)) = (left, right) {
+    if let (Object::Integer(left), Object::Integer(right)) = (left.clone(), right.clone()) {
         return eval_integer_infix_expression(operator, left, right);
     }
     if let (Object::Boolean(left), Object::Boolean(right)) = (left, right) {
@@ -207,6 +209,21 @@ mod tests {
         for (test, exp) in tests {
             let evaluated = test_eval(test);
             assert_eq!(evaluated, exp);
+        }
+    }
+
+    #[test]
+    fn test_return_statements() {
+        let tests = vec![
+            ("return 10;", 10),
+            ("return 10; 9;", 10),
+            ("return 5 * 2; 9;", 10),
+            ("9; return 2 * 5; 9;", 10),
+        ];
+
+        for (test, exp) in tests {
+            let evaluated = test_eval(test);
+            assert!(test_integer_object(evaluated, exp));
         }
     }
 

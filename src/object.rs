@@ -1,9 +1,10 @@
 use std::fmt;
 
-#[derive(Copy, Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub(crate) enum Object {
     Integer(i64),
     Boolean(bool),
+    ReturnValue(Box<Object>),
     Null,
 }
 
@@ -12,6 +13,7 @@ impl fmt::Display for Object {
         match self {
             Object::Integer(i) => write!(f, "{}", i),
             Object::Boolean(b) => write!(f, "{}", b),
+            Object::ReturnValue(obj) => write!(f, "{}", *obj),
             Object::Null => write!(f, "null"),
         }
     }
