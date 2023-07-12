@@ -4,12 +4,23 @@ use crate::{
     token::Token,
 };
 
+pub(crate) fn eval(prog: Program) -> Object {
+    let evaluated = eval_program(prog);
+    if let Object::ReturnValue(ret) = evaluated {
+        *ret
+    } else {
+        evaluated
+    }
+}
+
 pub(crate) fn eval_program(prog: Program) -> Object {
     let mut evaluated = Object::Null;
     for stmt in prog {
         evaluated = eval_statement(stmt);
-        if let Object::ReturnValue(ret) = evaluated {
-            return *ret.clone();
+        match evaluated {
+            Object::ReturnValue(_) => return evaluated,
+            Object::Error(_) => return evaluated,
+            _ => (),
         }
     }
     evaluated
@@ -59,7 +70,7 @@ fn eval_bang_operator_expression(right: Object) -> Object {
 fn eval_minus_operator_expression(right: Object) -> Object {
     match right {
         Object::Integer(i) => Object::Integer(-i),
-        _ => Object::Null,
+        _ => Object::Error(format!("unknown operator: -{}", right.type_str())),
     }
 }
 
@@ -67,10 +78,24 @@ fn eval_infix_expression(operator: Token, left: Object, right: Object) -> Object
     if let (Object::Integer(left), Object::Integer(right)) = (left.clone(), right.clone()) {
         return eval_integer_infix_expression(operator, left, right);
     }
-    if let (Object::Boolean(left), Object::Boolean(right)) = (left, right) {
+    if let (Object::Boolean(left), Object::Boolean(right)) = (left.clone(), right.clone()) {
         return eval_boolean_infix_expression(operator, left, right);
     }
-    Object::Null
+    if std::mem::discriminant(&left) != std::mem::discriminant(&right) {
+        Object::Error(format!(
+            "type mismatch: {} {} {}",
+            left.type_str(),
+            operator,
+            right.type_str()
+        ))
+    } else {
+        Object::Error(format!(
+            "unknown operator: {} {} {}",
+            left.type_str(),
+            operator,
+            right.type_str()
+        ))
+    }
 }
 
 fn eval_integer_infix_expression(operator: Token, left: i64, right: i64) -> Object {
@@ -83,7 +108,7 @@ fn eval_integer_infix_expression(operator: Token, left: i64, right: i64) -> Obje
         Token::Gt => Object::Boolean(left > right),
         Token::Eq => Object::Boolean(left == right),
         Token::NotEq => Object::Boolean(left != right),
-        _ => Object::Null,
+        _ => Object::Error(format!("unknown operator: INTEGER {} INTEGER", operator)),
     }
 }
 
@@ -93,7 +118,7 @@ fn eval_boolean_infix_expression(operator: Token, left: bool, right: bool) -> Ob
         Token::Gt => Object::Boolean(left > right),
         Token::Eq => Object::Boolean(left == right),
         Token::NotEq => Object::Boolean(left != right),
-        _ => Object::Null,
+        _ => Object::Error(format!("unknown operator: BOOLEAN {} BOOLEAN", operator)),
     }
 }
 
@@ -219,6 +244,17 @@ mod tests {
             ("return 10; 9;", 10),
             ("return 5 * 2; 9;", 10),
             ("9; return 2 * 5; 9;", 10),
+            (
+                "
+    if (10 > 1) {
+        if 10 > 1 {
+            return 10;
+        }
+        
+        return 1;
+    }",
+                10,
+            ),
         ];
 
         for (test, exp) in tests {
@@ -227,12 +263,32 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_error_handling() {
+        let tests = vec![
+            ("5 + true;", "type mismatch: INTEGER + BOOLEAN"),
+            ("5 + true; 5;", "type mismatch: INTEGER + BOOLEAN"),
+            ("-true", "unknown operator: -BOOLEAN"),
+            ("true + false", "unknown operator: BOOLEAN + BOOLEAN"),
+            ("5; true + false; 5;", "unknown operator: BOOLEAN + BOOLEAN"),
+            (
+                "if (10 > 1) { true + false; }",
+                "unknown operator: BOOLEAN + BOOLEAN",
+            ),
+        ];
+
+        for (test, exp) in tests {
+            let evaluated = test_eval(test);
+            assert!(test_error_object(evaluated, exp));
+        }
+    }
+
     fn test_eval(prog: &str) -> Object {
         let l = Lexer::new(prog);
         let mut p = Parser::new(l);
         let program = p.parse_program();
 
-        eval_program(program)
+        eval(program)
     }
 
     fn test_integer_object(obj: Object, expected: i64) -> bool {
@@ -246,6 +302,14 @@ mod tests {
         match obj {
             Object::Boolean(b) => b == expected,
             _ => panic!("{} is not boolean", obj),
+        }
+    }
+
+    fn test_error_object(obj: Object, expected: &str) -> bool {
+        if let Object::Error(e) = obj {
+            e == expected
+        } else {
+            panic!("{} is not error object", obj);
         }
     }
 }
