@@ -41,10 +41,22 @@ fn eval_expression(expr: Expression) -> Object {
         Expression::Integer(i) => Object::Integer(i),
         Expression::Boolean(b) => Object::Boolean(b),
         Expression::PrefixExpression(pe) => {
-            eval_prefix_expression(pe.op, eval_expression(*pe.right))
+            let right = eval_expression(*pe.right);
+            if let Object::Error(_) = right {
+                return right;
+            }
+            eval_prefix_expression(pe.op, right)
         }
         Expression::InfixExpression(ie) => {
-            eval_infix_expression(ie.op, eval_expression(*ie.left), eval_expression(*ie.right))
+            let left = eval_expression(*ie.left);
+            if let Object::Error(_) = left {
+                return left;
+            }
+            let right = eval_expression(*ie.right);
+            if let Object::Error(_) = right {
+                return right;
+            }
+            eval_infix_expression(ie.op, left, right)
         }
         Expression::IfExpression(ie) => eval_if_expression(ie),
         _ => todo!(),
@@ -123,7 +135,11 @@ fn eval_boolean_infix_expression(operator: Token, left: bool, right: bool) -> Ob
 }
 
 fn eval_if_expression(ie: IfExpression) -> Object {
-    if is_truthy(eval_expression(*ie.condition)) {
+    let cond = eval_expression(*ie.condition);
+    if let Object::Error(_) = cond {
+        return cond;
+    }
+    if is_truthy(cond) {
         eval_program(ie.consequence)
     } else {
         if let Some(alt) = ie.alternative {
