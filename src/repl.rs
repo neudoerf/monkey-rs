@@ -1,4 +1,4 @@
-use crate::{evaluator::eval, lexer::Lexer, parser::Parser};
+use crate::{evaluator::eval, lexer::Lexer, object::Environment, parser::Parser};
 use std::io::{self, Write};
 
 const PROMPT: &str = ">> ";
@@ -6,6 +6,7 @@ const PROMPT: &str = ">> ";
 pub(crate) fn start() {
     let stdin = io::stdin();
     let mut stdout = io::stdout();
+    let mut env = Environment::new();
 
     loop {
         let mut buffer = String::new();
@@ -19,7 +20,7 @@ pub(crate) fn start() {
         if p.errors.len() != 0 {
             p.errors.iter().for_each(|e| println!("{}", e));
         } else {
-            let eval = eval(program);
+            let eval = eval(program, &mut env);
             println!("{}", eval);
         }
     }

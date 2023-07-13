@@ -1,11 +1,11 @@
 use crate::{
     ast::{Expression, IfExpression, Program, Statement},
-    object::Object,
+    object::{Environment, Object},
     token::Token,
 };
 
-pub(crate) fn eval(prog: Program) -> Object {
-    let evaluated = eval_program(prog);
+pub(crate) fn eval(prog: Program, env: &mut Environment) -> Object {
+    let evaluated = eval_program(prog, env);
     if let Object::ReturnValue(ret) = evaluated {
         *ret
     } else {
@@ -13,10 +13,10 @@ pub(crate) fn eval(prog: Program) -> Object {
     }
 }
 
-pub(crate) fn eval_program(prog: Program) -> Object {
+pub(crate) fn eval_program(prog: Program, env: &mut Environment) -> Object {
     let mut evaluated = Object::Null;
     for stmt in prog {
-        evaluated = eval_statement(stmt);
+        evaluated = eval_statement(stmt, env);
         match evaluated {
             Object::ReturnValue(_) => return evaluated,
             Object::Error(_) => return evaluated,
@@ -26,39 +26,50 @@ pub(crate) fn eval_program(prog: Program) -> Object {
     evaluated
 }
 
-fn eval_statement(stmt: Statement) -> Object {
+fn eval_statement(stmt: Statement, env: &mut Environment) -> Object {
     match stmt {
-        Statement::ExpressionStatement(es) => eval_expression(es.expression),
+        Statement::ExpressionStatement(es) => eval_expression(es.expression, env),
         Statement::ReturnStatement(rs) => {
-            Object::ReturnValue(Box::new(eval_expression(rs.return_value)))
+            Object::ReturnValue(Box::new(eval_expression(rs.return_value, env)))
         }
-        _ => todo!(),
+        Statement::LetStatement(ls) => {
+            let val = eval_expression(ls.value, env);
+            env.set(&ls.ident, val)
+        }
     }
 }
 
-fn eval_expression(expr: Expression) -> Object {
+fn eval_expression(expr: Expression, env: &mut Environment) -> Object {
     match expr {
         Expression::Integer(i) => Object::Integer(i),
         Expression::Boolean(b) => Object::Boolean(b),
         Expression::PrefixExpression(pe) => {
-            let right = eval_expression(*pe.right);
+            let right = eval_expression(*pe.right, env);
             if let Object::Error(_) = right {
                 return right;
             }
             eval_prefix_expression(pe.op, right)
         }
         Expression::InfixExpression(ie) => {
-            let left = eval_expression(*ie.left);
+            let left = eval_expression(*ie.left, env);
             if let Object::Error(_) = left {
                 return left;
             }
-            let right = eval_expression(*ie.right);
+            let right = eval_expression(*ie.right, env);
             if let Object::Error(_) = right {
                 return right;
             }
             eval_infix_expression(ie.op, left, right)
         }
-        Expression::IfExpression(ie) => eval_if_expression(ie),
+        Expression::IfExpression(ie) => eval_if_expression(ie, env),
+        Expression::Identifier(i) => {
+            let v = env.get(&i);
+            if let Some(obj) = v {
+                (*obj).clone()
+            } else {
+                Object::Error(format!("identifier not found: {}", i))
+            }
+        }
         _ => todo!(),
     }
 }
@@ -134,16 +145,16 @@ fn eval_boolean_infix_expression(operator: Token, left: bool, right: bool) -> Ob
     }
 }
 
-fn eval_if_expression(ie: IfExpression) -> Object {
-    let cond = eval_expression(*ie.condition);
+fn eval_if_expression(ie: IfExpression, env: &mut Environment) -> Object {
+    let cond = eval_expression(*ie.condition, env);
     if let Object::Error(_) = cond {
         return cond;
     }
     if is_truthy(cond) {
-        eval_program(ie.consequence)
+        eval_program(ie.consequence, env)
     } else {
         if let Some(alt) = ie.alternative {
-            eval_program(alt)
+            eval_program(alt, env)
         } else {
             Object::Null
         }
@@ -291,6 +302,7 @@ mod tests {
                 "if (10 > 1) { true + false; }",
                 "unknown operator: BOOLEAN + BOOLEAN",
             ),
+            ("foobar;", "identifier not found: foobar"),
         ];
 
         for (test, exp) in tests {
@@ -299,12 +311,28 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_let_statements() {
+        let tests = vec![
+            ("let a = 5; a;", 5),
+            ("let a = 5 * 5; a;", 25),
+            ("let a = 5; let b = a; b;", 5),
+            ("let a = 5; let b = a; let c = a + b + 5; c;", 15),
+        ];
+
+        for (test, exp) in tests {
+            let evaluated = test_eval(test);
+            assert!(test_integer_object(evaluated, exp));
+        }
+    }
+
     fn test_eval(prog: &str) -> Object {
         let l = Lexer::new(prog);
         let mut p = Parser::new(l);
         let program = p.parse_program();
+        let mut env = Environment::new();
 
-        eval(program)
+        eval(program, &mut env)
     }
 
     fn test_integer_object(obj: Object, expected: i64) -> bool {

@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{collections::HashMap, fmt};
 
 #[derive(Clone, PartialEq, Debug)]
 pub(crate) enum Object {
@@ -30,5 +30,26 @@ impl Object {
             Object::Error(_) => "ERROR".to_owned(),
             Object::Null => "NULL".to_owned(),
         }
+    }
+}
+
+pub(crate) struct Environment {
+    store: HashMap<String, Object>,
+}
+
+impl Environment {
+    pub(crate) fn new() -> Environment {
+        Environment {
+            store: HashMap::new(),
+        }
+    }
+
+    pub(crate) fn get(&self, name: &str) -> Option<&Object> {
+        self.store.get(name)
+    }
+
+    pub(crate) fn set(&mut self, name: &str, val: Object) -> Object {
+        self.store.insert(name.to_owned(), val.clone());
+        val
     }
 }
