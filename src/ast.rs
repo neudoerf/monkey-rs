@@ -2,7 +2,7 @@ use std::{fmt, ops};
 
 use crate::token::{Identifier, Token};
 
-#[derive(PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub(crate) struct Program(pub Vec<Statement>);
 
 impl ops::Deref for Program {
@@ -36,7 +36,7 @@ impl fmt::Display for Program {
     }
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub(crate) enum Statement {
     LetStatement(LetStatement),
     ReturnStatement(ReturnStatement),
@@ -53,23 +53,23 @@ impl fmt::Display for Statement {
     }
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub(crate) struct LetStatement {
     pub(crate) ident: Identifier,
     pub(crate) value: Expression,
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub(crate) struct ReturnStatement {
     pub(crate) return_value: Expression,
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub(crate) struct ExpressionStatement {
     pub(crate) expression: Expression,
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub(crate) enum Expression {
     Identifier(Identifier),
     Integer(i64),
@@ -81,33 +81,33 @@ pub(crate) enum Expression {
     Call(Call),
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub(crate) struct PrefixExpression {
     pub(crate) op: Token,
     pub(crate) right: Box<Expression>,
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub(crate) struct InfixExpression {
     pub(crate) left: Box<Expression>,
     pub(crate) op: Token,
     pub(crate) right: Box<Expression>,
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub(crate) struct IfExpression {
     pub(crate) condition: Box<Expression>,
     pub(crate) consequence: Program,
     pub(crate) alternative: Option<Program>,
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub(crate) struct Function {
     pub(crate) parameters: Vec<Identifier>,
     pub(crate) body: Program,
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub(crate) struct Call {
     pub(crate) function: Box<Expression>,
     pub(crate) args: Vec<Expression>,

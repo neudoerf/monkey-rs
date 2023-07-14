@@ -1,6 +1,6 @@
 use crate::{
     ast::{Expression, IfExpression, Program, Statement},
-    object::{Environment, Object},
+    object::{Environment, Function, Object},
     token::Token,
 };
 
@@ -70,6 +70,11 @@ fn eval_expression(expr: Expression, env: &mut Environment) -> Object {
                 Object::Error(format!("identifier not found: {}", i))
             }
         }
+        Expression::Function(func) => Object::Function(Function {
+            params: func.parameters,
+            body: func.body,
+            env: (*env).clone(),
+        }),
         _ => todo!(),
     }
 }
@@ -323,6 +328,19 @@ mod tests {
         for (test, exp) in tests {
             let evaluated = test_eval(test);
             assert!(test_integer_object(evaluated, exp));
+        }
+    }
+
+    #[test]
+    fn test_function_object() {
+        let input = "fn(x) {x + 2;};";
+        let evaluated = test_eval(input);
+        if let Object::Function(func) = evaluated {
+            assert_eq!(func.params.len(), 1);
+            assert_eq!(func.params[0], "x");
+            assert_eq!(format!("{}", func.body), "(x + 2)\n");
+        } else {
+            panic!("object is not function. got {}", evaluated);
         }
     }
 
