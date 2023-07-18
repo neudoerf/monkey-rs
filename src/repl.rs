@@ -20,8 +20,10 @@ pub(crate) fn start() {
         if p.errors.len() != 0 {
             p.errors.iter().for_each(|e| println!("{}", e));
         } else {
-            let eval = eval(program, &mut env);
-            println!("{}", eval);
+            match eval(program, &mut env) {
+                Ok(obj) => println!("{}", obj),
+                Err(e) => println!("ERROR: {}", e),
+            }
         }
     }
 }

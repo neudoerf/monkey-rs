@@ -2,13 +2,37 @@ use std::{collections::HashMap, fmt};
 
 use crate::{ast::Program, token::Identifier};
 
+#[derive(Debug)]
+pub(crate) struct EvalError {
+    details: String,
+}
+
+impl EvalError {
+    pub(crate) fn new(msg: &str) -> EvalError {
+        EvalError {
+            details: msg.to_owned(),
+        }
+    }
+}
+
+impl fmt::Display for EvalError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.details)
+    }
+}
+
+impl std::error::Error for EvalError {
+    fn description(&self) -> &str {
+        &self.details
+    }
+}
+
 #[derive(Clone, PartialEq, Debug)]
 pub(crate) enum Object {
     Integer(i64),
     Boolean(bool),
     ReturnValue(Box<Object>),
     Function(Function),
-    Error(String),
     Null,
 }
 
@@ -30,7 +54,6 @@ impl fmt::Display for Object {
                 write!(f, "{}", func.params.join(", "))?;
                 write!(f, ") {{\n{}\n}}", func.body)
             }
-            Object::Error(e) => write!(f, "ERROR: {}", e),
             Object::Null => write!(f, "null"),
         }
     }
@@ -43,7 +66,6 @@ impl Object {
             Object::Boolean(_) => "BOOLEAN".to_owned(),
             Object::ReturnValue(obj) => obj.type_str(),
             Object::Function(_) => "FUNCTION".to_owned(),
-            Object::Error(_) => "ERROR".to_owned(),
             Object::Null => "NULL".to_owned(),
         }
     }

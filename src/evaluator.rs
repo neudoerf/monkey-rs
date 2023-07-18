@@ -1,87 +1,77 @@
 use crate::{
     ast::{Expression, IfExpression, Program, Statement},
-    object::{Environment, Function, Object},
+    object::{Environment, EvalError, Function, Object},
     token::Token,
 };
 
-pub(crate) fn eval(prog: Program, env: &mut Environment) -> Object {
+pub(crate) fn eval(prog: Program, env: &mut Environment) -> Result<Object, EvalError> {
     let evaluated = eval_program(prog, env);
-    if let Object::ReturnValue(ret) = evaluated {
-        *ret
+    if let Ok(Object::ReturnValue(ret)) = evaluated {
+        Ok(*ret)
     } else {
         evaluated
     }
 }
 
-pub(crate) fn eval_program(prog: Program, env: &mut Environment) -> Object {
+pub(crate) fn eval_program(prog: Program, env: &mut Environment) -> Result<Object, EvalError> {
     let mut evaluated = Object::Null;
     for stmt in prog {
-        evaluated = eval_statement(stmt, env);
-        match evaluated {
-            Object::ReturnValue(_) => return evaluated,
-            Object::Error(_) => return evaluated,
-            _ => (),
+        evaluated = eval_statement(stmt, env)?;
+        if let Object::ReturnValue(_) = evaluated {
+            return Ok(evaluated);
         }
     }
-    evaluated
+    Ok(evaluated)
 }
 
-fn eval_statement(stmt: Statement, env: &mut Environment) -> Object {
+fn eval_statement(stmt: Statement, env: &mut Environment) -> Result<Object, EvalError> {
     match stmt {
         Statement::ExpressionStatement(es) => eval_expression(es.expression, env),
-        Statement::ReturnStatement(rs) => {
-            Object::ReturnValue(Box::new(eval_expression(rs.return_value, env)))
-        }
+        Statement::ReturnStatement(rs) => Ok(Object::ReturnValue(Box::new(eval_expression(
+            rs.return_value,
+            env,
+        )?))),
         Statement::LetStatement(ls) => {
-            let val = eval_expression(ls.value, env);
-            env.set(&ls.ident, val)
+            let val = eval_expression(ls.value, env)?;
+            Ok(env.set(&ls.ident, val))
         }
     }
 }
 
-fn eval_expression(expr: Expression, env: &mut Environment) -> Object {
+fn eval_expression(expr: Expression, env: &mut Environment) -> Result<Object, EvalError> {
     match expr {
-        Expression::Integer(i) => Object::Integer(i),
-        Expression::Boolean(b) => Object::Boolean(b),
+        Expression::Integer(i) => Ok(Object::Integer(i)),
+        Expression::Boolean(b) => Ok(Object::Boolean(b)),
         Expression::PrefixExpression(pe) => {
-            let right = eval_expression(*pe.right, env);
-            if let Object::Error(_) = right {
-                return right;
-            }
+            let right = eval_expression(*pe.right, env)?;
             eval_prefix_expression(pe.op, right)
         }
         Expression::InfixExpression(ie) => {
-            let left = eval_expression(*ie.left, env);
-            if let Object::Error(_) = left {
-                return left;
-            }
-            let right = eval_expression(*ie.right, env);
-            if let Object::Error(_) = right {
-                return right;
-            }
+            let left = eval_expression(*ie.left, env)?;
+            let right = eval_expression(*ie.right, env)?;
             eval_infix_expression(ie.op, left, right)
         }
         Expression::IfExpression(ie) => eval_if_expression(ie, env),
         Expression::Identifier(i) => {
             let v = env.get(&i);
             if let Some(obj) = v {
-                (*obj).clone()
+                Ok((*obj).clone())
             } else {
-                Object::Error(format!("identifier not found: {}", i))
+                Err(EvalError::new(&format!("identifier not found: {}", i)))
             }
         }
-        Expression::Function(func) => Object::Function(Function {
+        Expression::Function(func) => Ok(Object::Function(Function {
             params: func.parameters,
             body: func.body,
             env: (*env).clone(),
-        }),
+        })),
         _ => todo!(),
     }
 }
 
-fn eval_prefix_expression(operator: Token, right: Object) -> Object {
+fn eval_prefix_expression(operator: Token, right: Object) -> Result<Object, EvalError> {
     match operator {
-        Token::Bang => eval_bang_operator_expression(right),
+        Token::Bang => Ok(eval_bang_operator_expression(right)),
         Token::Minus => eval_minus_operator_expression(right),
         _ => todo!(),
     }
@@ -95,14 +85,22 @@ fn eval_bang_operator_expression(right: Object) -> Object {
     }
 }
 
-fn eval_minus_operator_expression(right: Object) -> Object {
-    match right {
-        Object::Integer(i) => Object::Integer(-i),
-        _ => Object::Error(format!("unknown operator: -{}", right.type_str())),
+fn eval_minus_operator_expression(right: Object) -> Result<Object, EvalError> {
+    if let Object::Integer(i) = right {
+        Ok(Object::Integer(-i))
+    } else {
+        Err(EvalError::new(&format!(
+            "unknown operator: -{}",
+            right.type_str()
+        )))
     }
 }
 
-fn eval_infix_expression(operator: Token, left: Object, right: Object) -> Object {
+fn eval_infix_expression(
+    operator: Token,
+    left: Object,
+    right: Object,
+) -> Result<Object, EvalError> {
     if let (Object::Integer(left), Object::Integer(right)) = (left.clone(), right.clone()) {
         return eval_integer_infix_expression(operator, left, right);
     }
@@ -110,58 +108,69 @@ fn eval_infix_expression(operator: Token, left: Object, right: Object) -> Object
         return eval_boolean_infix_expression(operator, left, right);
     }
     if std::mem::discriminant(&left) != std::mem::discriminant(&right) {
-        Object::Error(format!(
+        Err(EvalError::new(&format!(
             "type mismatch: {} {} {}",
             left.type_str(),
             operator,
             right.type_str()
-        ))
+        )))
     } else {
-        Object::Error(format!(
+        Err(EvalError::new(&format!(
             "unknown operator: {} {} {}",
             left.type_str(),
             operator,
             right.type_str()
-        ))
+        )))
     }
 }
 
-fn eval_integer_infix_expression(operator: Token, left: i64, right: i64) -> Object {
+fn eval_integer_infix_expression(
+    operator: Token,
+    left: i64,
+    right: i64,
+) -> Result<Object, EvalError> {
     match operator {
-        Token::Plus => Object::Integer(left + right),
-        Token::Minus => Object::Integer(left - right),
-        Token::Asterisk => Object::Integer(left * right),
-        Token::Slash => Object::Integer(left / right),
-        Token::Lt => Object::Boolean(left < right),
-        Token::Gt => Object::Boolean(left > right),
-        Token::Eq => Object::Boolean(left == right),
-        Token::NotEq => Object::Boolean(left != right),
-        _ => Object::Error(format!("unknown operator: INTEGER {} INTEGER", operator)),
+        Token::Plus => Ok(Object::Integer(left + right)),
+        Token::Minus => Ok(Object::Integer(left - right)),
+        Token::Asterisk => Ok(Object::Integer(left * right)),
+        Token::Slash => Ok(Object::Integer(left / right)),
+        Token::Lt => Ok(Object::Boolean(left < right)),
+        Token::Gt => Ok(Object::Boolean(left > right)),
+        Token::Eq => Ok(Object::Boolean(left == right)),
+        Token::NotEq => Ok(Object::Boolean(left != right)),
+        _ => Err(EvalError::new(&format!(
+            "unknown operator: INTEGER {} INTEGER",
+            operator
+        ))),
     }
 }
 
-fn eval_boolean_infix_expression(operator: Token, left: bool, right: bool) -> Object {
+fn eval_boolean_infix_expression(
+    operator: Token,
+    left: bool,
+    right: bool,
+) -> Result<Object, EvalError> {
     match operator {
-        Token::Lt => Object::Boolean(left < right),
-        Token::Gt => Object::Boolean(left > right),
-        Token::Eq => Object::Boolean(left == right),
-        Token::NotEq => Object::Boolean(left != right),
-        _ => Object::Error(format!("unknown operator: BOOLEAN {} BOOLEAN", operator)),
+        Token::Lt => Ok(Object::Boolean(left < right)),
+        Token::Gt => Ok(Object::Boolean(left > right)),
+        Token::Eq => Ok(Object::Boolean(left == right)),
+        Token::NotEq => Ok(Object::Boolean(left != right)),
+        _ => Err(EvalError::new(&format!(
+            "unknown operator: BOOLEAN {} BOOLEAN",
+            operator
+        ))),
     }
 }
 
-fn eval_if_expression(ie: IfExpression, env: &mut Environment) -> Object {
-    let cond = eval_expression(*ie.condition, env);
-    if let Object::Error(_) = cond {
-        return cond;
-    }
+fn eval_if_expression(ie: IfExpression, env: &mut Environment) -> Result<Object, EvalError> {
+    let cond = eval_expression(*ie.condition, env)?;
     if is_truthy(cond) {
         eval_program(ie.consequence, env)
     } else {
         if let Some(alt) = ie.alternative {
             eval_program(alt, env)
         } else {
-            Object::Null
+            Ok(Object::Null)
         }
     }
 }
@@ -200,8 +209,10 @@ mod tests {
         ];
 
         for (t, exp) in tests {
-            let evaluated = test_eval(t);
-            assert!(test_integer_object(evaluated, exp));
+            match test_eval(t) {
+                Ok(evaluated) => assert!(test_integer_object(evaluated, exp)),
+                Err(e) => panic!("ERROR: {}", e),
+            }
         }
     }
 
@@ -230,8 +241,10 @@ mod tests {
         ];
 
         for (t, exp) in tests {
-            let evaluated = test_eval(t);
-            assert!(test_boolean_object(evaluated, exp));
+            match test_eval(t) {
+                Ok(evaluated) => assert!(test_boolean_object(evaluated, exp)),
+                Err(e) => panic!("ERROR: {}", e),
+            }
         }
     }
 
@@ -245,9 +258,12 @@ mod tests {
             ("!!false", false),
             ("!!5", true),
         ];
+
         for (t, exp) in tests {
-            let evaluated = test_eval(t);
-            test_boolean_object(evaluated, exp);
+            match test_eval(t) {
+                Ok(evaluated) => assert!(test_boolean_object(evaluated, exp)),
+                Err(e) => panic!("ERROR: {}", e),
+            }
         }
     }
 
@@ -264,8 +280,10 @@ mod tests {
         ];
 
         for (test, exp) in tests {
-            let evaluated = test_eval(test);
-            assert_eq!(evaluated, exp);
+            match test_eval(test) {
+                Ok(evaluated) => assert_eq!(evaluated, exp),
+                Err(e) => panic!("ERROR: {}", e),
+            }
         }
     }
 
@@ -290,8 +308,10 @@ mod tests {
         ];
 
         for (test, exp) in tests {
-            let evaluated = test_eval(test);
-            assert!(test_integer_object(evaluated, exp));
+            match test_eval(test) {
+                Ok(evaluated) => assert!(test_integer_object(evaluated, exp)),
+                Err(e) => panic!("ERROR: {}", e),
+            }
         }
     }
 
@@ -311,8 +331,10 @@ mod tests {
         ];
 
         for (test, exp) in tests {
-            let evaluated = test_eval(test);
-            assert!(test_error_object(evaluated, exp));
+            match test_eval(test) {
+                Ok(obj) => panic!("{} is not error object", obj),
+                Err(e) => assert_eq!(e.to_string(), exp),
+            }
         }
     }
 
@@ -326,25 +348,31 @@ mod tests {
         ];
 
         for (test, exp) in tests {
-            let evaluated = test_eval(test);
-            assert!(test_integer_object(evaluated, exp));
+            match test_eval(test) {
+                Ok(evaluated) => assert!(test_integer_object(evaluated, exp)),
+                Err(e) => panic!("ERROR: {}", e),
+            }
         }
     }
 
     #[test]
     fn test_function_object() {
         let input = "fn(x) {x + 2;};";
-        let evaluated = test_eval(input);
-        if let Object::Function(func) = evaluated {
-            assert_eq!(func.params.len(), 1);
-            assert_eq!(func.params[0], "x");
-            assert_eq!(format!("{}", func.body), "(x + 2)\n");
-        } else {
-            panic!("object is not function. got {}", evaluated);
+        match test_eval(input) {
+            Ok(evaluated) => {
+                if let Object::Function(func) = evaluated {
+                    assert_eq!(func.params.len(), 1);
+                    assert_eq!(func.params[0], "x");
+                    assert_eq!(format!("{}", func.body), "(x + 2)\n");
+                } else {
+                    panic!("object is not function. got {}", evaluated);
+                }
+            }
+            Err(e) => panic!("ERROR: {}", e),
         }
     }
 
-    fn test_eval(prog: &str) -> Object {
+    fn test_eval(prog: &str) -> Result<Object, EvalError> {
         let l = Lexer::new(prog);
         let mut p = Parser::new(l);
         let program = p.parse_program();
@@ -364,14 +392,6 @@ mod tests {
         match obj {
             Object::Boolean(b) => b == expected,
             _ => panic!("{} is not boolean", obj),
-        }
-    }
-
-    fn test_error_object(obj: Object, expected: &str) -> bool {
-        if let Object::Error(e) = obj {
-            e == expected
-        } else {
-            panic!("{} is not error object", obj);
         }
     }
 }
