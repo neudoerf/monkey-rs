@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt};
+use std::{cell::RefCell, collections::HashMap, fmt, rc::Rc};
 
 use crate::{ast::Program, token::Identifier};
 
@@ -40,7 +40,7 @@ pub(crate) enum Object {
 pub(crate) struct Function {
     pub(crate) params: Vec<Identifier>,
     pub(crate) body: Program,
-    pub(crate) env: Environment,
+    pub(crate) env: Env,
 }
 
 impl fmt::Display for Object {
@@ -71,24 +71,43 @@ impl Object {
     }
 }
 
+pub(crate) type Env = Rc<RefCell<Environment>>;
+
 #[derive(Clone, PartialEq, Debug)]
 pub(crate) struct Environment {
-    store: HashMap<String, Object>,
+    store: HashMap<String, Rc<Object>>,
+    outer: Option<Env>,
 }
 
 impl Environment {
-    pub(crate) fn new() -> Environment {
-        Environment {
+    pub(crate) fn new() -> Env {
+        Rc::new(RefCell::new(Environment {
             store: HashMap::new(),
+            outer: None,
+        }))
+    }
+
+    pub(crate) fn new_enclosed(outer: Rc<RefCell<Environment>>) -> Env {
+        Rc::new(RefCell::new(Environment {
+            store: HashMap::new(),
+            outer: Some(Rc::clone(&outer)),
+        }))
+    }
+
+    pub(crate) fn get(&self, name: &str) -> Option<Rc<Object>> {
+        match self.store.get(name) {
+            Some(obj) => Some(Rc::clone(obj)),
+            None => {
+                if let Some(outer) = &self.outer {
+                    outer.borrow().get(name)
+                } else {
+                    None
+                }
+            }
         }
     }
 
-    pub(crate) fn get(&self, name: &str) -> Option<&Object> {
-        self.store.get(name)
-    }
-
-    pub(crate) fn set(&mut self, name: &str, val: Object) -> Object {
-        self.store.insert(name.to_owned(), val.clone());
-        val
+    pub(crate) fn set(&mut self, name: &str, val: Rc<Object>) {
+        self.store.insert(name.to_owned(), val);
     }
 }
