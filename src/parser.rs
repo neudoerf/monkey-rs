@@ -114,6 +114,7 @@ impl Parser {
         match self.cur_token {
             Token::Ident(_) => self.parse_identifier(),
             Token::Int(_) => self.parse_integer_literal(),
+            Token::String(_) => self.parse_string_literal(),
             Token::True | Token::False => self.parse_boolean(),
             Token::Bang | Token::Minus => self.parse_prefix_expression(),
             Token::LParen => self.parse_grouped_expression(),
@@ -280,6 +281,17 @@ impl Parser {
         } else {
             Err(format!(
                 "expected current token to be Int, got {:?} instead",
+                self.cur_token
+            ))
+        }
+    }
+
+    fn parse_string_literal(&mut self) -> Result<Expression, ParserError> {
+        if let Token::String(s) = &self.cur_token {
+            Ok(Expression::String((*s).clone()))
+        } else {
+            Err(format!(
+                "expected current token to be String, got {:?} instead",
                 self.cur_token
             ))
         }
@@ -580,6 +592,31 @@ mod tests {
                     _ => panic!("expression is not Identifier"),
                 },
                 _ => panic!("stmt is not ExpressionStatement"),
+            }
+        }
+    }
+
+    #[test]
+    fn test_string_literal_expression() {
+        let input = "\"hello world\";";
+
+        let l = Lexer::new(input);
+        let mut p = Parser::new(l);
+
+        let program = p.parse_program();
+
+        check_errors(p);
+        assert_eq!(program.len(), 1);
+
+        for stmt in program {
+            if let Statement::ExpressionStatement(es) = stmt {
+                if let Expression::String(s) = es.expression {
+                    assert_eq!(s, "hello world");
+                } else {
+                    panic!("expression is not string");
+                }
+            } else {
+                panic!("stmt is not ExpressionStatement");
             }
         }
     }

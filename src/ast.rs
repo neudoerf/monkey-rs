@@ -74,6 +74,7 @@ pub(crate) enum Expression {
     Identifier(Identifier),
     Integer(i64),
     Boolean(bool),
+    String(String),
     PrefixExpression(PrefixExpression),
     InfixExpression(InfixExpression),
     IfExpression(IfExpression),
@@ -119,6 +120,7 @@ impl fmt::Display for Expression {
             Expression::Identifier(i) => write!(f, "{}", i),
             Expression::Integer(i) => write!(f, "{}", i),
             Expression::Boolean(b) => write!(f, "{}", b),
+            Expression::String(s) => write!(f, "{}", s),
             Expression::PrefixExpression(pe) => write!(f, "({}{})", pe.op, pe.right),
             Expression::InfixExpression(ie) => write!(f, "({} {} {})", ie.left, ie.op, ie.right),
             Expression::IfExpression(ie) => {

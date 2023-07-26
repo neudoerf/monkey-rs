@@ -31,6 +31,7 @@ impl std::error::Error for EvalError {
 pub(crate) enum Object {
     Integer(i64),
     Boolean(bool),
+    String(String),
     ReturnValue(Box<Object>),
     Function(Function),
     Null,
@@ -48,6 +49,7 @@ impl fmt::Display for Object {
         match self {
             Object::Integer(i) => write!(f, "{}", i),
             Object::Boolean(b) => write!(f, "{}", b),
+            Object::String(s) => write!(f, "{}", s),
             Object::ReturnValue(obj) => write!(f, "{}", *obj),
             Object::Function(func) => {
                 write!(f, "fn(")?;
@@ -64,6 +66,7 @@ impl Object {
         match self {
             Object::Integer(_) => "INTEGER".to_owned(),
             Object::Boolean(_) => "BOOLEAN".to_owned(),
+            Object::String(_) => "STRING".to_owned(),
             Object::ReturnValue(obj) => obj.type_str(),
             Object::Function(_) => "FUNCTION".to_owned(),
             Object::Null => "NULL".to_owned(),

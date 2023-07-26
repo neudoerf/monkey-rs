@@ -8,6 +8,7 @@ pub(crate) enum Token {
     // Identifiers + literals
     Ident(Identifier),
     Int(i64),
+    String(String),
 
     // Operators
     Assign,
@@ -69,6 +70,7 @@ fn tok_to_str(t: &Token) -> String {
         Token::EOF => "eof".to_owned(),
         Token::Ident(id) => id.clone(),
         Token::Int(i) => format!("{}", i),
+        Token::String(s) => format!("{}", s),
         Token::Assign => "=".to_owned(),
         Token::Plus => "+".to_owned(),
         Token::Minus => "-".to_owned(),
