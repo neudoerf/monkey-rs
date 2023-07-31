@@ -1,4 +1,4 @@
-use crate::{evaluator::eval, lexer::Lexer, object::Environment, parser::Parser};
+use crate::{interpreter::eval, interpreter::object::Environment, lexer::Lexer, parser::Parser};
 use std::{
     io::{self, Write},
     rc::Rc,

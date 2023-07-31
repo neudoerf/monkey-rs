@@ -2,9 +2,11 @@ use std::{cell::RefCell, rc::Rc};
 
 use crate::{
     ast::{Expression, IfExpression, Program, Statement},
-    object::{Env, Environment, EvalError, Function, Object},
+    interpreter::object::{Env, Environment, EvalError, Function, Object},
     token::Token,
 };
+
+use super::{builtins::lookup_builtin, object::Builtin};
 
 pub(crate) fn eval(prog: Program, env: Env) -> Result<Object, EvalError> {
     let evaluated = eval_program(prog, env)?;
@@ -56,7 +58,14 @@ fn eval_expression(expr: Expression, env: Env) -> Result<Object, EvalError> {
             if let Some(obj) = env.borrow().get(&i) {
                 Ok((*obj).clone())
             } else {
-                Err(EvalError::new(&format!("identifier not found: {}", i)))
+                if let Some(builtin) = lookup_builtin(&i) {
+                    Ok(Object::Builtin(Builtin {
+                        name: i,
+                        func: builtin,
+                    }))
+                } else {
+                    Err(EvalError::new(&format!("identifier not found: {}", i)))
+                }
             }
         }
         Expression::Function(func) => Ok(Object::Function(Function {
@@ -66,15 +75,15 @@ fn eval_expression(expr: Expression, env: Env) -> Result<Object, EvalError> {
         })),
         Expression::Call(c) => {
             let func = eval_expression(*c.function, Rc::clone(&env))?;
-            if let Object::Function(func) = func {
-                let args: Vec<Object> = c
-                    .args
-                    .into_iter()
-                    .map(|expr| eval_expression(expr, Rc::clone(&env)))
-                    .collect::<Result<Vec<_>, _>>()?;
-                apply_function(func, args)
-            } else {
-                Err(EvalError::new(&format!("expected function, got: {}", func)))
+            let args: Vec<Object> = c
+                .args
+                .into_iter()
+                .map(|expr| eval_expression(expr, Rc::clone(&env)))
+                .collect::<Result<Vec<_>, _>>()?;
+            match func {
+                Object::Function(func) => apply_function(func, args),
+                Object::Builtin(builtin) => (builtin.func)(args),
+                _ => Err(EvalError::new(&format!("expected function, got: {}", func))),
             }
         }
     }
@@ -384,6 +393,11 @@ mod tests {
                 "\"Hello\" - \"World\";",
                 "unknown operator: STRING - STRING",
             ),
+            ("len(1)", "argument to `len` not supported, got INTEGER"),
+            (
+                "len(\"one\", \"two\")",
+                "wrong number of arguments. got=2, want=1",
+            ),
         ];
 
         for (test, exp) in tests {
@@ -473,6 +487,28 @@ mod tests {
                 }
             }
             Err(e) => panic!("ERROR: {}", e),
+        }
+    }
+
+    #[test]
+    fn test_builtin_functions() {
+        let tests = vec![
+            ("len(\"\")", 0),
+            ("len(\"four\")", 4),
+            ("len(\"hello world\")", 11),
+        ];
+
+        for (test, exp) in tests {
+            match test_eval(test) {
+                Ok(evaluated) => {
+                    if let Object::Integer(i) = evaluated {
+                        assert_eq!(i, exp);
+                    } else {
+                        panic!("object is not integer, got {}", evaluated);
+                    }
+                }
+                Err(e) => panic!("ERROR: {}", e),
+            }
         }
     }
 

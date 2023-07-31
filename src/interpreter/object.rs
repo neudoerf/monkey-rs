@@ -34,6 +34,7 @@ pub(crate) enum Object {
     String(String),
     ReturnValue(Box<Object>),
     Function(Function),
+    Builtin(Builtin),
     Null,
 }
 
@@ -42,6 +43,12 @@ pub(crate) struct Function {
     pub(crate) params: Vec<Identifier>,
     pub(crate) body: Program,
     pub(crate) env: Env,
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub(crate) struct Builtin {
+    pub(crate) name: Identifier,
+    pub(crate) func: fn(Vec<Object>) -> Result<Object, EvalError>,
 }
 
 impl fmt::Display for Object {
@@ -56,6 +63,7 @@ impl fmt::Display for Object {
                 write!(f, "{}", func.params.join(", "))?;
                 write!(f, ") {{\n{}\n}}", func.body)
             }
+            Object::Builtin(b) => write!(f, "{}(...)", b.name,),
             Object::Null => write!(f, "null"),
         }
     }
@@ -69,6 +77,7 @@ impl Object {
             Object::String(_) => "STRING".to_owned(),
             Object::ReturnValue(obj) => obj.type_str(),
             Object::Function(_) => "FUNCTION".to_owned(),
+            Object::Builtin(_) => "BUILTIN".to_owned(),
             Object::Null => "NULL".to_owned(),
         }
     }
