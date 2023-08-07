@@ -75,11 +75,13 @@ pub(crate) enum Expression {
     Integer(i64),
     Boolean(bool),
     String(String),
+    Array(Vec<Expression>),
     PrefixExpression(PrefixExpression),
     InfixExpression(InfixExpression),
     IfExpression(IfExpression),
     Function(Function),
     Call(Call),
+    Index(Index),
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -114,6 +116,12 @@ pub(crate) struct Call {
     pub(crate) args: Vec<Expression>,
 }
 
+#[derive(Clone, PartialEq, Debug)]
+pub(crate) struct Index {
+    pub(crate) left: Box<Expression>,
+    pub(crate) index: Box<Expression>,
+}
+
 impl fmt::Display for Expression {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -121,6 +129,14 @@ impl fmt::Display for Expression {
             Expression::Integer(i) => write!(f, "{}", i),
             Expression::Boolean(b) => write!(f, "{}", b),
             Expression::String(s) => write!(f, "{}", s),
+            Expression::Array(a) => write!(
+                f,
+                "[{}]",
+                a.iter()
+                    .map(|x| format!("{}", x))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
             Expression::PrefixExpression(pe) => write!(f, "({}{})", pe.op, pe.right),
             Expression::InfixExpression(ie) => write!(f, "({} {} {})", ie.left, ie.op, ie.right),
             Expression::IfExpression(ie) => {
@@ -153,6 +169,9 @@ impl fmt::Display for Expression {
                         .collect::<Vec<_>>()
                         .join(", ")
                 )
+            }
+            Expression::Index(i) => {
+                write!(f, "({}[{}])", i.left, i.index)
             }
         }
     }

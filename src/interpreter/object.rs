@@ -32,6 +32,7 @@ pub(crate) enum Object {
     Integer(i64),
     Boolean(bool),
     String(String),
+    Array(Vec<Object>),
     ReturnValue(Box<Object>),
     Function(Function),
     Builtin(Builtin),
@@ -57,6 +58,14 @@ impl fmt::Display for Object {
             Object::Integer(i) => write!(f, "{}", i),
             Object::Boolean(b) => write!(f, "{}", b),
             Object::String(s) => write!(f, "{}", s),
+            Object::Array(a) => write!(
+                f,
+                "[{}]",
+                a.iter()
+                    .map(|i| format!("{}", i))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
             Object::ReturnValue(obj) => write!(f, "{}", *obj),
             Object::Function(func) => {
                 write!(f, "fn(")?;
@@ -75,6 +84,7 @@ impl Object {
             Object::Integer(_) => "INTEGER".to_owned(),
             Object::Boolean(_) => "BOOLEAN".to_owned(),
             Object::String(_) => "STRING".to_owned(),
+            Object::Array(_) => "ARRAY".to_owned(),
             Object::ReturnValue(obj) => obj.type_str(),
             Object::Function(_) => "FUNCTION".to_owned(),
             Object::Builtin(_) => "BUILTIN".to_owned(),

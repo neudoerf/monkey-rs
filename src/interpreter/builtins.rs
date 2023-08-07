@@ -14,12 +14,12 @@ fn eval_len(args: Vec<Object>) -> Result<Object, EvalError> {
             args.len()
         )));
     }
-    if let Object::String(s) = &args[0] {
-        Ok(Object::Integer(s.len().try_into().unwrap()))
-    } else {
-        Err(EvalError::new(&format!(
+    match &args[0] {
+        Object::String(s) => Ok(Object::Integer(s.len().try_into().unwrap())),
+        Object::Array(a) => Ok(Object::Integer(a.len().try_into().unwrap())),
+        _ => Err(EvalError::new(&format!(
             "argument to `len` not supported, got {}",
             args[0].type_str()
-        )))
+        ))),
     }
 }

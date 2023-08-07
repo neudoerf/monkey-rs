@@ -32,6 +32,8 @@ pub(crate) enum Token {
     RParen,
     LBrace,
     RBrace,
+    LBracket,
+    RBracket,
 
     // Keywords
     Function,
@@ -87,6 +89,8 @@ fn tok_to_str(t: &Token) -> String {
         Token::RParen => ")".to_owned(),
         Token::LBrace => "{".to_owned(),
         Token::RBrace => "}".to_owned(),
+        Token::LBracket => "[".to_owned(),
+        Token::RBracket => "]".to_owned(),
         Token::Function => "fn".to_owned(),
         Token::Let => "let".to_owned(),
         Token::True => "true".to_owned(),

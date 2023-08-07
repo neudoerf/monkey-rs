@@ -60,6 +60,8 @@ impl Lexer {
             b')' => Token::RParen,
             b'{' => Token::LBrace,
             b'}' => Token::RBrace,
+            b'[' => Token::LBracket,
+            b']' => Token::RBracket,
             b'"' => Token::String(self.read_string()),
             0 => Token::EOF,
             _ => {
@@ -88,7 +90,7 @@ impl Lexer {
 
     fn read_identifier(&mut self) -> String {
         let position = self.position;
-        while self.ch.is_ascii_alphabetic() {
+        while self.ch.is_ascii_alphabetic() || self.ch == b'_' {
             self.read_char();
         }
         self.input[position..self.position].to_owned()
@@ -146,6 +148,7 @@ if (5 < 10) {
 10 != 9;
 \"foobar\"
 \"foo bar\"
+[1, 2];
 ";
         let tests = [
             Token::Let,
@@ -223,6 +226,12 @@ if (5 < 10) {
             Token::Semicolon,
             Token::String("foobar".to_owned()),
             Token::String("foo bar".to_owned()),
+            Token::LBracket,
+            Token::Int(1),
+            Token::Comma,
+            Token::Int(2),
+            Token::RBracket,
+            Token::Semicolon,
             Token::EOF,
         ];
 

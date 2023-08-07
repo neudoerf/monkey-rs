@@ -1,6 +1,6 @@
 use crate::ast::{
-    Call, Expression, ExpressionStatement, Function, IfExpression, InfixExpression, LetStatement,
-    PrefixExpression, Program, ReturnStatement, Statement,
+    Call, Expression, ExpressionStatement, Function, IfExpression, Index, InfixExpression,
+    LetStatement, PrefixExpression, Program, ReturnStatement, Statement,
 };
 use crate::lexer::Lexer;
 use crate::token::{Identifier, Token};
@@ -24,6 +24,7 @@ enum Precedence {
     Product,     // *
     Prefix,      // -X or !X
     Call,        // myFunction(X)
+    Index,
 }
 
 impl Parser {
@@ -72,7 +73,7 @@ impl Parser {
     fn parse_expression_statement(&mut self) -> Result<Statement, ParserError> {
         let expression = self.parse_expression(Precedence::Lowest)?;
 
-        if self.peek_token_is(Token::Semicolon) {
+        if self.peek_token_is(&Token::Semicolon) {
             self.next_token();
         }
 
@@ -84,7 +85,7 @@ impl Parser {
     fn parse_expression(&mut self, precedence: Precedence) -> Result<Expression, ParserError> {
         let mut left_expr = self.prefix_dispatch()?;
 
-        while !self.peek_token_is(Token::Semicolon)
+        while !self.peek_token_is(&Token::Semicolon)
             && prec(&precedence) < prec(&self.peek_precedence())
         {
             match self.peek_token {
@@ -103,6 +104,10 @@ impl Parser {
                     self.next_token();
                     left_expr = self.parse_call_expression(left_expr)?
                 }
+                Token::LBracket => {
+                    self.next_token();
+                    left_expr = self.parse_index_expression(left_expr)?
+                }
                 _ => return Ok(left_expr),
             }
         }
@@ -118,6 +123,7 @@ impl Parser {
             Token::True | Token::False => self.parse_boolean(),
             Token::Bang | Token::Minus => self.parse_prefix_expression(),
             Token::LParen => self.parse_grouped_expression(),
+            Token::LBracket => self.parse_array_literal(),
             Token::If => self.parse_if_expression(),
             Token::Function => self.parse_function_literal(),
             _ => Err(format!(
@@ -127,8 +133,27 @@ impl Parser {
         }
     }
 
+    fn parse_index_expression(&mut self, left: Expression) -> Result<Expression, ParserError> {
+        self.next_token();
+        let exp = Ok(Expression::Index(Index {
+            left: Box::new(left),
+            index: Box::new(self.parse_expression(Precedence::Lowest)?),
+        }));
+        if !self.expect_peek(&Token::RBracket) {
+            Err("expected rbracket".to_owned())
+        } else {
+            exp
+        }
+    }
+
+    fn parse_array_literal(&mut self) -> Result<Expression, ParserError> {
+        Ok(Expression::Array(
+            self.parse_expression_list(Token::RBracket)?,
+        ))
+    }
+
     fn parse_function_literal(&mut self) -> Result<Expression, ParserError> {
-        if !self.expect_peek(Token::LParen) {
+        if !self.expect_peek(&Token::LParen) {
             return Err(format!(
                 "function missing LParen, found {} instead",
                 self.peek_token
@@ -137,7 +162,7 @@ impl Parser {
 
         let params = self.parse_function_params()?;
 
-        if !self.expect_peek(Token::LBrace) {
+        if !self.expect_peek(&Token::LBrace) {
             return Err(format!(
                 "function missing LBrace, found {} instead",
                 self.peek_token
@@ -155,7 +180,7 @@ impl Parser {
     fn parse_function_params(&mut self) -> Result<Vec<Identifier>, ParserError> {
         let mut identifiers: Vec<Identifier> = vec![];
 
-        if self.peek_token_is(Token::RParen) {
+        if self.peek_token_is(&Token::RParen) {
             self.next_token();
             return Ok(identifiers);
         }
@@ -171,7 +196,7 @@ impl Parser {
             ));
         }
 
-        while self.peek_token_is(Token::Comma) {
+        while self.peek_token_is(&Token::Comma) {
             self.next_token();
             self.next_token();
             if let Token::Ident(i) = &self.cur_token {
@@ -184,7 +209,7 @@ impl Parser {
             }
         }
 
-        if !self.expect_peek(Token::RParen) {
+        if !self.expect_peek(&Token::RParen) {
             return Err(format!(
                 "missing RParen at end of function parameters, found {} instead",
                 self.peek_token
@@ -195,7 +220,7 @@ impl Parser {
     }
 
     fn parse_if_expression(&mut self) -> Result<Expression, ParserError> {
-        if !self.expect_peek(Token::LParen) {
+        if !self.expect_peek(&Token::LParen) {
             return Err("if missing LParen".to_owned());
         }
 
@@ -203,20 +228,20 @@ impl Parser {
 
         let cond = self.parse_expression(Precedence::Lowest)?;
 
-        if !self.expect_peek(Token::RParen) {
+        if !self.expect_peek(&Token::RParen) {
             return Err("if missing RParen".to_owned());
         }
 
-        if !self.expect_peek(Token::LBrace) {
+        if !self.expect_peek(&Token::LBrace) {
             return Err("if missing LBrace".to_owned());
         }
 
         let cons = self.parse_block_statement();
 
-        if self.peek_token_is(Token::Else) {
+        if self.peek_token_is(&Token::Else) {
             self.next_token();
 
-            if !self.expect_peek(Token::LBrace) {
+            if !self.expect_peek(&Token::LBrace) {
                 return Err("else missing LBrace".to_owned());
             }
 
@@ -253,7 +278,7 @@ impl Parser {
 
         let e = self.parse_expression(Precedence::Lowest);
 
-        if !self.expect_peek(Token::RParen) {
+        if !self.expect_peek(&Token::RParen) {
             Err("Not RParen".to_owned())
         } else {
             e
@@ -300,14 +325,14 @@ impl Parser {
     fn parse_call_expression(&mut self, function: Expression) -> Result<Expression, ParserError> {
         Ok(Expression::Call(Call {
             function: Box::new(function),
-            args: self.parse_call_args()?,
+            args: self.parse_expression_list(Token::RParen)?,
         }))
     }
 
-    fn parse_call_args(&mut self) -> Result<Vec<Expression>, ParserError> {
+    fn parse_expression_list(&mut self, end: Token) -> Result<Vec<Expression>, ParserError> {
         let mut args = vec![];
 
-        if self.peek_token_is(Token::RParen) {
+        if self.peek_token_is(&end) {
             self.next_token();
             return Ok(args);
         }
@@ -315,13 +340,13 @@ impl Parser {
         self.next_token();
         args.push(self.parse_expression(Precedence::Lowest)?);
 
-        while self.peek_token_is(Token::Comma) {
+        while self.peek_token_is(&Token::Comma) {
             self.next_token();
             self.next_token();
             args.push(self.parse_expression(Precedence::Lowest)?);
         }
 
-        if !self.expect_peek(Token::RParen) {
+        if !self.expect_peek(&end) {
             Err(format!(
                 "Expected RParen and end of call args, got: {}",
                 self.peek_token
@@ -372,7 +397,7 @@ impl Parser {
 
         let expr = self.parse_expression(Precedence::Lowest)?;
 
-        if self.peek_token_is(Token::Semicolon) {
+        if self.peek_token_is(&Token::Semicolon) {
             self.next_token();
         }
 
@@ -399,7 +424,7 @@ impl Parser {
             )),
         }?;
 
-        if !self.expect_peek(Token::Assign) {
+        if !self.expect_peek(&Token::Assign) {
             return Err(format!(
                 "expected next token to be Assign, got {:?} instead",
                 self.peek_token
@@ -410,7 +435,7 @@ impl Parser {
 
         let expr = self.parse_expression(Precedence::Lowest)?;
 
-        if self.peek_token_is(Token::Semicolon) {
+        if self.peek_token_is(&Token::Semicolon) {
             self.next_token();
         }
 
@@ -421,11 +446,11 @@ impl Parser {
         self.cur_token == t
     }
 
-    fn peek_token_is(&self, t: Token) -> bool {
-        self.peek_token == t
+    fn peek_token_is(&self, t: &Token) -> bool {
+        self.peek_token == *t
     }
 
-    fn expect_peek(&mut self, t: Token) -> bool {
+    fn expect_peek(&mut self, t: &Token) -> bool {
         if self.peek_token_is(t) {
             self.next_token();
             return true;
@@ -456,6 +481,7 @@ fn lookup_precedence(t: &Token) -> Option<Precedence> {
         Token::Plus | Token::Minus => Some(Precedence::Sum),
         Token::Slash | Token::Asterisk => Some(Precedence::Product),
         Token::LParen => Some(Precedence::Call),
+        Token::LBracket => Some(Precedence::Index),
         _ => return None,
     }
 }
@@ -469,6 +495,7 @@ fn prec(p: &Precedence) -> usize {
         Precedence::Product => 4,
         Precedence::Prefix => 5,
         Precedence::Call => 6,
+        Precedence::Index => 7,
     }
 }
 
@@ -723,6 +750,14 @@ mod tests {
                 "add(a + b + c * d / f + g)",
                 "add((((a + b) + ((c * d) / f)) + g))",
             ),
+            (
+                "a * [1, 2, 3, 4][b * c] * d",
+                "((a * ([1, 2, 3, 4][(b * c)])) * d)",
+            ),
+            (
+                "add(a * b[2], b[1], 2 * [1, 2][1])",
+                "add((a * (b[2])), (b[1]), (2 * ([1, 2][1])))",
+            ),
         ];
 
         for tt in tests {
@@ -875,6 +910,52 @@ mod tests {
                     assert_eq!(format!("{}", call.args[2]), "(4 + 5)");
                 }
                 _ => panic!("expression is not call"),
+            },
+            _ => panic!("statement is not expression"),
+        }
+    }
+
+    #[test]
+    fn test_array_parsing() {
+        let input = "[1, 2 * 2, 3 + 3]";
+
+        let l = Lexer::new(input);
+        let mut p = Parser::new(l);
+        let program = p.parse_program();
+        check_errors(p);
+
+        assert_eq!(program.len(), 1);
+        match &program[0] {
+            Statement::ExpressionStatement(es) => match &es.expression {
+                Expression::Array(a) => {
+                    assert_eq!(a.len(), 3);
+                    assert_eq!(a[0], Expression::Integer(1));
+                    assert_eq!(format!("{}", a[1]), "(2 * 2)");
+                    assert_eq!(format!("{}", a[2]), "(3 + 3)");
+                }
+                _ => panic!("expression is not array"),
+            },
+            _ => panic!("statement is not expression"),
+        }
+    }
+
+    #[test]
+    fn test_index_expression() {
+        let input = "myarray[1 + 1]";
+
+        let l = Lexer::new(input);
+        let mut p = Parser::new(l);
+        let program = p.parse_program();
+        check_errors(p);
+
+        assert_eq!(program.len(), 1);
+        match &program[0] {
+            Statement::ExpressionStatement(es) => match &es.expression {
+                Expression::Index(i) => {
+                    assert_eq!(*i.left, Expression::Identifier("myarray".to_owned()));
+                    assert_eq!(format!("{}", i.index), "(1 + 1)");
+                }
+                _ => panic!("expression is not index"),
             },
             _ => panic!("statement is not expression"),
         }
