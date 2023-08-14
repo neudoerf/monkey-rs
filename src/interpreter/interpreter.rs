@@ -525,19 +525,36 @@ mod tests {
     #[test]
     fn test_builtin_functions() {
         let tests = vec![
-            ("len(\"\")", 0),
-            ("len(\"four\")", 4),
-            ("len(\"hello world\")", 11),
+            ("len(\"\")", Object::Integer(0)),
+            ("len(\"four\")", Object::Integer(4)),
+            ("len(\"hello world\")", Object::Integer(11)),
+            ("len([1, 2, 3, 4])", Object::Integer(4)),
+            (
+                "first([1, 2, 3, 4])",
+                Object::Array(vec![1].into_iter().map(|i| Object::Integer(i)).collect()),
+            ),
+            (
+                "first([1])",
+                Object::Array(vec![1].into_iter().map(|i| Object::Integer(i)).collect()),
+            ),
+            ("first([])", Object::Null),
+            (
+                "rest([1, 2, 3, 4])",
+                Object::Array(
+                    vec![2, 3, 4]
+                        .into_iter()
+                        .map(|i| Object::Integer(i))
+                        .collect(),
+                ),
+            ),
+            ("rest([1])", Object::Array(vec![])),
+            ("rest([])", Object::Null),
         ];
 
         for (test, exp) in tests {
             match test_eval(test) {
                 Ok(evaluated) => {
-                    if let Object::Integer(i) = evaluated {
-                        assert_eq!(i, exp);
-                    } else {
-                        panic!("object is not integer, got {}", evaluated);
-                    }
+                    assert_eq!(evaluated, exp);
                 }
                 Err(e) => panic!("ERROR: {}", e),
             }
